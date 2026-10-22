@@ -7,7 +7,7 @@ Goal: Claude reads and updates Redmine tasks through MCP tools while the user's 
 ## 1. Architecture
 
 ```
-Claude Code ──(MCP, streamable HTTP, 127.0.0.1:7399/mcp)──> Bridge daemon (Node/TS)
+Claude Code ──(MCP stdio)──> stdio relay ──(HTTP, 127.0.0.1:7399/mcp)──> Bridge daemon (Node/TS)
                                                                 │  WebSocket 127.0.0.1:7399/ext
                                                                 ▼
                                                Chrome extension (MV3 service worker)
@@ -16,6 +16,7 @@ Claude Code ──(MCP, streamable HTTP, 127.0.0.1:7399/mcp)──> Bridge daemo
                                                      your Redmine (REST JSON)
 ```
 
+- **stdio relay** (`daemon/src/stdio.ts`): the command Claude Code actually spawns. Claude Code sends MCP-over-HTTP through `HTTPS_PROXY`, and a corporate proxy answers 503 for `127.0.0.1`; `node:http` ignores the proxy variables, so the relay forwards each JSON-RPC line to the daemon's `/mcp` endpoint directly. It relies on the daemon being stateless (one POST per message).
 - **Daemon** (`daemon/src`): exposes the MCP server and the extension WebSocket. Turns a tool call into a request message, waits for the reply (20 s timeout), shapes the response into compact JSON. `/health` reports whether an extension is connected and its build stamp.
 - **Extension** (`extension/src`): `core.ts` executes allowlisted requests and maps errors; `link.ts` keeps the WebSocket alive (ping every 20 s, reconnect with backoff); `worker.ts` wires it to Chrome; `popup.ts` is the toolbar popup where the user enters the Redmine address (validated by `settings.ts`: https, or http for localhost only; access granted at runtime through `optional_host_permissions`) and the daemon port. It knows nothing about tools.
 - **Why a daemon, not Native Messaging**: Chrome would spawn the native host while Claude spawns the MCP server, so they would still need IPC. One loopback daemon serves several Claude sessions and outlives them.

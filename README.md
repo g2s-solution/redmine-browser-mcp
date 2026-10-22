@@ -66,13 +66,17 @@ Check: `curl -s localhost:7399/health` now shows `"extensionConnected":true`.
 
 ### 5. Register the MCP server with Claude Code (Agent)
 
-Either start `claude` from this repository (it ships `.mcp.json`; approve the `redmine-bridge` server), or register it for all projects:
+The server is registered as a **stdio** command, not as an HTTP URL. Claude Code sends MCP-over-HTTP through the `HTTPS_PROXY` it is configured with, and a corporate proxy cannot reach `127.0.0.1` (the symptom is a 503 with a Squid error page). `npm run -s mcp-stdio` is a small relay that Claude Code spawns; it forwards each message to the daemon directly and never uses the proxy.
+
+Either start `claude` from this repository once (it ships `.mcp.json`; approve the `redmine-bridge` server), or register it for all projects, using the absolute path of your clone:
 
 ```bash
-claude mcp add --scope user --transport http redmine-bridge http://127.0.0.1:7399/mcp
+claude mcp add --scope user redmine-bridge -- npm --prefix "$(pwd)" run -s mcp-stdio
 ```
 
-Check: `claude mcp list` shows `redmine-bridge` as connected.
+A custom daemon port is passed through the environment: `claude mcp add --scope user -e REDMINE_MCP_PORT=7400 redmine-bridge -- npm --prefix "$(pwd)" run -s mcp-stdio`.
+
+Check: `claude mcp list` shows `redmine-bridge` as connected (a project-scope server first shows "Pending approval" until you approve it in `claude`). On a machine with no proxy, plain HTTP also works: `claude mcp add --transport http redmine-bridge http://127.0.0.1:7399/mcp`.
 
 ### 6. Verify (Agent)
 
@@ -106,18 +110,19 @@ Redmine ignores session cookies on `.json` URLs and wants an API key. The extens
 
 ## Troubleshooting
 
-| Symptom                                            | Cause / fix                                                                                                                                                                                                                                                                |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NOT_CONNECTED`                                    | Daemon not running, extension badge not `ON`, or wrong port in the extension popup. `curl -s localhost:7399/health` tells you which.                                                                                                                                       |
-| `AUTH_REQUIRED: could not read the API access key` | Your account page shows no API key: the REST API is disabled in Redmine (Administration → Settings → API) or your account may not use it. Ask a Redmine admin.                                                                                                             |
-| `AUTH_REQUIRED`                                    | Redmine or protection-layer session expired or you are not logged in: open Redmine in Chrome and log in. If it persists while logged in, the extension's fetch is being challenged; tell the maintainers (a content-script fetch is the possible fallback, see DESIGN.md). |
-| `FORBIDDEN_PATH`                                   | The endpoint is not on the allowlist in `shared/protocol.ts` (by design).                                                                                                                                                                                                  |
-| `VALIDATION: ...`                                  | Redmine rejected the data, e.g. an invalid status for the workflow. Use `list_statuses`, `list_trackers` etc. to get valid ids.                                                                                                                                            |
-| `CSRF`                                             | Token rejected twice; reload the Redmine tab, log in again.                                                                                                                                                                                                                |
-| Extension changes not taking effect                | After `npm run build:ext`, remove and re-add the unpacked extension (or reload it) and compare the `build` value in `curl localhost:7399/health` with the stamp in `extension/dist/worker.js`.                                                                             |
-| `EADDRINUSE` on daemon start                       | A daemon is already running on that port; stop it (`pkill -f "[d]aemon/src/index.ts"`) or use another `REDMINE_MCP_PORT`.                                                                                                                                                  |
-| `TIMEOUT`                                          | Chrome asleep or worker restarting; retry. For a write tool the outcome is unknown: check in Redmine before retrying.                                                                                                                                                      |
-| Tools missing                                      | Daemon started with `READ_ONLY=1`, or the MCP server is not approved in Claude Code (`claude mcp list`).                                                                                                                                                                   |
+| Symptom                                                             | Cause / fix                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `redmine-bridge` fails to connect with `503` and a Squid error page | Claude Code routed the loopback HTTP request through your corporate proxy. Register the server as stdio (step 5), not as an HTTP URL.                                                                                                                                      |
+| `NOT_CONNECTED`                                                     | Daemon not running, extension badge not `ON`, or wrong port in the extension popup. `curl -s localhost:7399/health` tells you which.                                                                                                                                       |
+| `AUTH_REQUIRED: could not read the API access key`                  | Your account page shows no API key: the REST API is disabled in Redmine (Administration → Settings → API) or your account may not use it. Ask a Redmine admin.                                                                                                             |
+| `AUTH_REQUIRED`                                                     | Redmine or protection-layer session expired or you are not logged in: open Redmine in Chrome and log in. If it persists while logged in, the extension's fetch is being challenged; tell the maintainers (a content-script fetch is the possible fallback, see DESIGN.md). |
+| `FORBIDDEN_PATH`                                                    | The endpoint is not on the allowlist in `shared/protocol.ts` (by design).                                                                                                                                                                                                  |
+| `VALIDATION: ...`                                                   | Redmine rejected the data, e.g. an invalid status for the workflow. Use `list_statuses`, `list_trackers` etc. to get valid ids.                                                                                                                                            |
+| `CSRF`                                                              | Token rejected twice; reload the Redmine tab, log in again.                                                                                                                                                                                                                |
+| Extension changes not taking effect                                 | After `npm run build:ext`, remove and re-add the unpacked extension (or reload it) and compare the `build` value in `curl localhost:7399/health` with the stamp in `extension/dist/worker.js`.                                                                             |
+| `EADDRINUSE` on daemon start                                        | A daemon is already running on that port; stop it (`pkill -f "[d]aemon/src/index.ts"`) or use another `REDMINE_MCP_PORT`.                                                                                                                                                  |
+| `TIMEOUT`                                                           | Chrome asleep or worker restarting; retry. For a write tool the outcome is unknown: check in Redmine before retrying.                                                                                                                                                      |
+| Tools missing                                                       | Daemon started with `READ_ONLY=1`, or the MCP server is not approved in Claude Code (`claude mcp list`).                                                                                                                                                                   |
 
 ## Security notes
 

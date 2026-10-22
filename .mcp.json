@@ -1,5 +1,5 @@
 {
   "mcpServers": {
-    "redmine-bridge": { "type": "http", "url": "http://127.0.0.1:7399/mcp" }
+    "redmine-bridge": { "command": "npm", "args": ["run", "-s", "mcp-stdio"] }
   }
 }

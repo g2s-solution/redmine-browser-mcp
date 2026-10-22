@@ -17,7 +17,8 @@
     "format:check": "prettier --check .",
     "test:coverage": "vitest run --coverage",
     "ci": "npm run typecheck && npm run lint && npm run format:check && npm run test:coverage && npm run build:ext",
-    "smoke:check": "tsx scripts/smoke.ts --quiet"
+    "smoke:check": "tsx scripts/smoke.ts --quiet",
+    "mcp-stdio": "tsx daemon/src/stdio.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

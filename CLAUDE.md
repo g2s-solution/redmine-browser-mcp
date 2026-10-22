@@ -4,6 +4,7 @@ Local MCP daemon + Chrome extension that lets Claude use Redmine through the use
 
 ## Commands
 
+- `.mcp.json` registers the server as stdio (`npm run -s mcp-stdio`, `daemon/src/stdio.ts`) because Claude Code routes MCP-over-HTTP through the corporate proxy, which returns 503 for loopback. Do not switch it back to an HTTP URL.
 - `npm run ci` before a PR (typecheck, lint, format check, tests with coverage, build); `npm test` for tests only; `npm run format` writes Prettier formatting
 - `npm run build:ext` builds `extension/dist`; `npm run daemon` starts the daemon; `npm run smoke` calls the running daemon.
 
