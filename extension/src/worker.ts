@@ -1,3 +1,4 @@
+import { BUILD } from "./build.js";
 import { RedmineExecutor } from "./core.js";
 import { startLink } from "./link.js";
 import { NATIVE_HOST_NAME, startNativeLink } from "./native.js";
@@ -41,6 +42,7 @@ async function restart(): Promise<void> {
     connect: () => chrome.runtime.connectNative(NATIVE_HOST_NAME),
     handle,
     version,
+    build: BUILD,
     onStatus,
     onUnavailable: useWebSocket,
   });

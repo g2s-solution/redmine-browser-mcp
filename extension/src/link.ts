@@ -1,6 +1,5 @@
+import { BUILD } from "./build.js";
 import type { FromExtension, HttpRequestMsg, HttpResultMsg, ToExtension } from "../../shared/protocol.js";
-
-declare const __BUILD__: string | undefined;
 
 export interface LinkOptions {
   url: string;
@@ -33,7 +32,7 @@ export function startLink(opts: LinkOptions): { stop(): void } {
     sock.onopen = () => {
       backoff = 500;
       opts.onStatus?.(true);
-      send({ type: "hello", version: opts.version ?? "dev", build: typeof __BUILD__ === "string" ? __BUILD__ : "dev" });
+      send({ type: "hello", version: opts.version ?? "dev", build: BUILD });
       pingTimer = setInterval(() => send({ type: "ping" }), pingMs);
     };
     sock.onmessage = (ev) => {
