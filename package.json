@@ -16,7 +16,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:coverage": "vitest run --coverage",
-    "ci": "npm run typecheck && npm run lint && npm run format:check && npm run test:coverage && npm run build:ext"
+    "ci": "npm run typecheck && npm run lint && npm run format:check && npm run test:coverage && npm run build:ext",
+    "smoke:check": "tsx scripts/smoke.ts --quiet"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
