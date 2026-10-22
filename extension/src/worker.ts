@@ -1,0 +1,41 @@
+import { RedmineExecutor } from "./core.js";
+import { startLink } from "./link.js";
+import { DEFAULT_PORT } from "./settings.js";
+
+let link: { stop(): void } | null = null;
+let connected = false;
+let baseUrl = "";
+
+async function restart(): Promise<void> {
+  link?.stop();
+  link = null;
+  connected = false;
+  const stored = await chrome.storage.local.get(["port", "redmineBase"]);
+  baseUrl = stored.redmineBase || "";
+  if (!baseUrl) {
+    void chrome.action.setBadgeText({ text: "?" });
+    return;
+  }
+  const executor = new RedmineExecutor(fetch.bind(globalThis), baseUrl);
+  link = startLink({
+    url: `ws://127.0.0.1:${stored.port || DEFAULT_PORT}/ext`,
+    handle: (m) => executor.handle(m),
+    onStatus: (ok) => {
+      connected = ok;
+      void chrome.action.setBadgeText({ text: ok ? "ON" : "OFF" });
+    },
+  });
+}
+
+chrome.runtime.onInstalled.addListener(() => void restart());
+chrome.runtime.onStartup.addListener(() => void restart());
+chrome.storage.onChanged.addListener(() => void restart());
+chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
+  if (msg?.type !== "status") return;
+  reply({ connected, baseUrl });
+});
+chrome.alarms.create("keepalive", { periodInMinutes: 0.5 });
+chrome.alarms.onAlarm.addListener(() => {
+  if (!link) void restart();
+});
+void restart();
