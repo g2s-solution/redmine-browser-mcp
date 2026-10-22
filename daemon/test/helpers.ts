@@ -7,7 +7,13 @@ import type { Config } from "../src/config.js";
 export const EXT_ORIGIN = "chrome-extension://testext";
 
 export function testConfig(over: Partial<Config> = {}): Config {
-  return { port: 0, readOnly: false, requestTimeoutMs: 1000, auditPath: join(mkdtempSync(join(tmpdir(), "rmcp-")), "audit.log"), ...over };
+  return {
+    port: 0,
+    readOnly: false,
+    requestTimeoutMs: 1000,
+    auditPath: join(mkdtempSync(join(tmpdir(), "rmcp-")), "audit.log"),
+    ...over,
+  };
 }
 
 export async function startApp(over: Partial<Config> = {}) {

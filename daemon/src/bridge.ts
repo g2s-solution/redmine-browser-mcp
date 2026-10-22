@@ -45,7 +45,10 @@ export class Bridge {
   }
 
   private attach(ws: WebSocket): void {
-    this.socket?.close(1000, "replaced");
+    if (this.socket) {
+      this.failAll("extension reconnected; resend the request");
+      this.socket.close(1000, "replaced");
+    }
     this.socket = ws;
     this.opts.log?.("extension connected");
     ws.on("message", (data) => {
@@ -55,6 +58,7 @@ export class Bridge {
       } catch {
         return;
       }
+      if (!msg || typeof msg !== "object") return;
       if (msg.type === "hello") this.hello = { version: msg.version, build: msg.build };
       else if (msg.type === "ping") ws.send(JSON.stringify({ type: "pong" }));
       else if (msg.type === "http-result") this.settle(msg);
@@ -100,7 +104,12 @@ export class Bridge {
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        resolve({ id, type: "http-result", ok: false, error: { code: "TIMEOUT", message: "extension did not answer in time" } });
+        resolve({
+          id,
+          type: "http-result",
+          ok: false,
+          error: { code: "TIMEOUT", message: "extension did not answer in time" },
+        });
       }, this.opts.requestTimeoutMs);
       this.pending.set(id, { resolve, timer });
       this.socket!.send(JSON.stringify({ ...req, id, type: "http" } satisfies HttpRequestMsg));

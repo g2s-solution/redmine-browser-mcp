@@ -2,7 +2,12 @@ import type { Bridge } from "./bridge.js";
 import type { ErrorCode, HttpMethod } from "../../shared/protocol.js";
 
 export class RedmineError extends Error {
-  constructor(public code: ErrorCode, message: string, public status?: number, public details?: unknown) {
+  constructor(
+    public code: ErrorCode,
+    message: string,
+    public status?: number,
+    public details?: unknown,
+  ) {
     super(message);
   }
 }
@@ -10,7 +15,11 @@ export class RedmineError extends Error {
 export class RedmineClient {
   constructor(private bridge: Pick<Bridge, "request">) {}
 
-  async call<T = any>(method: HttpMethod, path: string, opts: { query?: Record<string, string>; body?: unknown } = {}): Promise<T | undefined> {
+  async call<T = any>(
+    method: HttpMethod,
+    path: string,
+    opts: { query?: Record<string, string>; body?: unknown } = {},
+  ): Promise<T | undefined> {
     const res = await this.bridge.request({ method, path, query: opts.query, body: opts.body });
     if (!res.ok) throw new RedmineError(res.error.code, res.error.message, res.error.status, res.error.details);
     return res.json as T | undefined;

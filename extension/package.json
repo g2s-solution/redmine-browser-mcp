@@ -1,1 +1,5 @@
-{ "name": "@redmine-mcp/extension", "private": true, "type": "module" }
+{
+  "name": "@redmine-mcp/extension",
+  "private": true,
+  "type": "module"
+}

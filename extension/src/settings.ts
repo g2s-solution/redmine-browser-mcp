@@ -2,7 +2,7 @@ export const DEFAULT_PORT = 7399;
 
 export type Parsed = { ok: true; baseUrl: string; origin: string } | { ok: false; error: string };
 
-const LOCAL = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const LOCAL = new Set(["localhost", "127.0.0.1"]);
 
 // Accepts "redmine.example.com", "https://redmine.example.com/redmine/" and similar; keeps an optional path prefix.
 export function parseRedmineUrl(input: string): Parsed {

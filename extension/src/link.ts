@@ -8,6 +8,7 @@ export interface LinkOptions {
   WebSocketCtor?: typeof WebSocket;
   pingMs?: number;
   maxBackoffMs?: number;
+  version?: string;
   onStatus?: (connected: boolean) => void;
 }
 
@@ -32,7 +33,7 @@ export function startLink(opts: LinkOptions): { stop(): void } {
     sock.onopen = () => {
       backoff = 500;
       opts.onStatus?.(true);
-      send({ type: "hello", version: "0.1.0", build: typeof __BUILD__ === "string" ? __BUILD__ : "dev" });
+      send({ type: "hello", version: opts.version ?? "dev", build: typeof __BUILD__ === "string" ? __BUILD__ : "dev" });
       pingTimer = setInterval(() => send({ type: "ping" }), pingMs);
     };
     sock.onmessage = (ev) => {
@@ -49,7 +50,7 @@ export function startLink(opts: LinkOptions): { stop(): void } {
       if (settled) return;
       settled = true;
       clearInterval(pingTimer);
-      opts.onStatus?.(false);
+      if (!stopped) opts.onStatus?.(false);
       if (ws === sock) ws = null;
       if (stopped) return;
       retryTimer = setTimeout(connect, backoff);
