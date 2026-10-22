@@ -1,12 +1,20 @@
 import type { IncomingMessage } from "node:http";
-import type { Duplex } from "node:stream";
+import type { Duplex, Readable, Writable } from "node:stream";
 import { WebSocket, WebSocketServer } from "ws";
+import { encodeFrame, FrameDecoder } from "../../shared/native.js";
 import type { FromExtension, HttpRequestMsg, HttpResultMsg } from "../../shared/protocol.js";
 
 export interface BridgeOptions {
   requestTimeoutMs: number;
   allowedExtensionId?: string;
   log?: (msg: string) => void;
+}
+
+// One live connection to the extension: a WebSocket, or Chrome's Native Messaging pipe.
+interface Channel {
+  send(json: string): void;
+  close(): void;
+  isOpen(): boolean;
 }
 
 interface Pending {
@@ -21,7 +29,7 @@ export function originAllowed(origin: string | undefined, extensionId?: string):
 
 export class Bridge {
   private wss = new WebSocketServer({ noServer: true });
-  private socket: WebSocket | null = null;
+  private channel: Channel | null = null;
   private pending = new Map<string, Pending>();
   private seq = 0;
   hello: { version: string; build?: string } | null = null;
@@ -29,7 +37,7 @@ export class Bridge {
   constructor(private opts: BridgeOptions) {}
 
   get connected(): boolean {
-    return this.socket?.readyState === WebSocket.OPEN;
+    return this.channel?.isOpen() ?? false;
   }
 
   handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
@@ -45,31 +53,70 @@ export class Bridge {
   }
 
   private attach(ws: WebSocket): void {
-    if (this.socket) {
-      this.failAll("extension reconnected; resend the request");
-      this.socket.close(1000, "replaced");
-    }
-    this.socket = ws;
-    this.opts.log?.("extension connected");
-    ws.on("message", (data) => {
-      let msg: FromExtension;
+    const link = this.adopt({
+      send: (json) => ws.send(json),
+      close: () => ws.close(1000, "replaced"),
+      isOpen: () => ws.readyState === WebSocket.OPEN,
+    });
+    ws.on("message", (data) => link.onMessage(data.toString()));
+    ws.on("close", link.onClose);
+  }
+
+  // Chrome starts this process and talks to it over stdin/stdout; ending stdin means Chrome closed the port.
+  attachNative(input: Readable, output: Writable): void {
+    const decoder = new FrameDecoder();
+    let open = true;
+    const link = this.adopt({
+      send: (json) => output.write(encodeFrame(json)),
+      close: () => {
+        open = false;
+      },
+      isOpen: () => open,
+    });
+    input.on("data", (chunk: Buffer) => {
       try {
-        msg = JSON.parse(data.toString());
-      } catch {
-        return;
+        for (const raw of decoder.push(chunk)) link.onMessage(raw);
+      } catch (e) {
+        this.opts.log?.(`native channel closed: ${e instanceof Error ? e.message : String(e)}`);
+        input.destroy();
       }
-      if (!msg || typeof msg !== "object") return;
-      if (msg.type === "hello") this.hello = { version: msg.version, build: msg.build };
-      else if (msg.type === "ping") ws.send(JSON.stringify({ type: "pong" }));
-      else if (msg.type === "http-result") this.settle(msg);
     });
-    ws.on("close", () => {
-      if (this.socket !== ws) return;
-      this.socket = null;
-      this.hello = null;
-      this.opts.log?.("extension disconnected");
-      this.failAll("extension disconnected");
-    });
+    const gone = () => {
+      open = false;
+      link.onClose();
+    };
+    input.on("end", gone);
+    input.on("close", gone);
+  }
+
+  private adopt(channel: Channel): { onMessage: (raw: string) => void; onClose: () => void } {
+    if (this.channel) {
+      this.failAll("extension reconnected; resend the request");
+      this.channel.close();
+    }
+    this.channel = channel;
+    this.opts.log?.("extension connected");
+    return {
+      onMessage: (raw) => {
+        let msg: FromExtension;
+        try {
+          msg = JSON.parse(raw);
+        } catch {
+          return;
+        }
+        if (!msg || typeof msg !== "object") return;
+        if (msg.type === "hello") this.hello = { version: msg.version, build: msg.build };
+        else if (msg.type === "ping") channel.send(JSON.stringify({ type: "pong" }));
+        else if (msg.type === "http-result") this.settle(msg);
+      },
+      onClose: () => {
+        if (this.channel !== channel) return;
+        this.channel = null;
+        this.hello = null;
+        this.opts.log?.("extension disconnected");
+        this.failAll("extension disconnected");
+      },
+    };
   }
 
   private settle(msg: HttpResultMsg): void {
@@ -112,13 +159,13 @@ export class Bridge {
         });
       }, this.opts.requestTimeoutMs);
       this.pending.set(id, { resolve, timer });
-      this.socket!.send(JSON.stringify({ ...req, id, type: "http" } satisfies HttpRequestMsg));
+      this.channel!.send(JSON.stringify({ ...req, id, type: "http" } satisfies HttpRequestMsg));
     });
   }
 
   close(): void {
     this.failAll("bridge closing");
-    this.socket?.close();
+    this.channel?.close();
     this.wss.close();
   }
 }
