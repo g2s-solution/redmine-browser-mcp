@@ -1,6 +1,6 @@
 # Redmine MCP bridge — design
 
-Status: implemented and verified against a real Redmine 6 instance behind a protection layer (read and write). Progress and history: [PROGRESS.md](PROGRESS.md). Usage: [README.md](README.md).
+Design of the implemented system, verified against a real Redmine 6 instance behind a protection layer (read and write). Usage: [README.md](README.md).
 
 Goal: Claude reads and updates Redmine tasks through MCP tools while the user's browser session stays the only credential. The site sits behind an external protection layer, so a script outside the browser cannot reach it.
 
@@ -17,7 +17,7 @@ Claude Code ──(MCP, streamable HTTP, 127.0.0.1:7399/mcp)──> Bridge daemo
 ```
 
 - **Daemon** (`daemon/src`): exposes the MCP server and the extension WebSocket. Turns a tool call into a request message, waits for the reply (20 s timeout), shapes the response into compact JSON. `/health` reports whether an extension is connected and its build stamp.
-- **Extension** (`extension/src`): `core.ts` executes allowlisted requests and maps errors; `link.ts` keeps the WebSocket alive (ping every 20 s, reconnect with backoff); `worker.ts` wires it to Chrome; `popup.ts` is the toolbar popup where the user enters the Redmine address (validated by `settings.ts`, https only, access granted at runtime through `optional_host_permissions`) and the daemon port. It knows nothing about tools.
+- **Extension** (`extension/src`): `core.ts` executes allowlisted requests and maps errors; `link.ts` keeps the WebSocket alive (ping every 20 s, reconnect with backoff); `worker.ts` wires it to Chrome; `popup.ts` is the toolbar popup where the user enters the Redmine address (validated by `settings.ts`: https, or http for localhost only; access granted at runtime through `optional_host_permissions`) and the daemon port. It knows nothing about tools.
 - **Why a daemon, not Native Messaging**: Chrome would spawn the native host while Claude spawns the MCP server, so they would still need IPC. One loopback daemon serves several Claude sessions and outlives them.
 - **Shared** (`shared/protocol.ts`): message types and `isAllowedRequest`, the single allowlist of method plus path pairs.
 
@@ -34,6 +34,7 @@ Rejected alternatives: scraping HTML/CSV (large, brittle, no `DOMParser` in the 
 ## 3. Security model
 
 - Daemon binds to `127.0.0.1` only. There is no shared token (decision: simpler setup). Instead it rejects any non-loopback `Host` (DNS rebinding), rejects `/mcp` requests that carry a browser `Origin`, and accepts the WebSocket only from `chrome-extension://` (optionally pinned with `REDMINE_MCP_EXTENSION_ID`). Trade-off: any local process running as the user can call the tools; `READ_ONLY=1` removes the write tools.
+- A write whose reply is lost (timeout, reconnect) may still have been applied; the tool error says so, because retrying `create_issue` or `log_time` could duplicate it.
 - The extension reaches only the Redmine origin the user saved in the popup: access to that origin is granted at runtime through a Chrome permission prompt (`optional_host_permissions`); there are no static host permissions. No `cookies` permission.
 - Fixed, typed tools only; no generic "fetch any URL" tool; no delete.
 - Write tools are hidden under `READ_ONLY=1`, carry MCP annotations so Claude Code asks for approval, and are appended to `~/.local/state/redmine-mcp/audit.log` (tool, arguments, outcome; no secrets).
@@ -66,7 +67,8 @@ Out of scope: delete, wiki, news, file upload, project and member management, Ga
 ```
 shared/protocol.ts            allowlist + message types
 daemon/src/{index,app,bridge,config,redmine,mcp,audit}.ts, tools/{index,shape}.ts
-extension/src/{core,link,worker,popup,settings}.ts, manifest.json, popup.html, build.mjs
+extension/src/{core,link,worker,popup,settings}.ts
+extension/{manifest.json,popup.html,build.mjs}
 test/e2e.test.ts              MCP client -> daemon -> extension core -> fake Redmine
 daemon/test, extension/test   unit and integration tests
 scripts/smoke.ts              calls get_current_user and list_issues on a running daemon
@@ -81,14 +83,14 @@ scripts/smoke.ts              calls get_current_user and list_issues on a runnin
 
 ## 8. Risks and open points
 
-| Risk | Mitigation |
-|---|---|
-| Session or protection-layer cookie expires | `AUTH_REQUIRED` with an instruction to log in again; no blind retries. |
-| Admin disables the REST API or hides the key | Clear `AUTH_REQUIRED` message; no fallback implemented. |
-| Redmine upgrade changes the key page | Three retrieval strategies plus masked diagnostics. |
-| Chrome closed or wrong profile | `NOT_CONNECTED` fails fast. |
-| Any local process can use the daemon | Loopback and Host/Origin checks, `READ_ONLY=1`; accepted trade-off. |
-| Prompt injection through issue text | Write approval stays on; no generic fetch; no delete. |
-| MV3 worker sleeps | Ping keep-alive, `chrome.alarms` restart, reconnect with backoff. Not soak-tested for long periods. |
+| Risk                                         | Mitigation                                                                                                                                |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Session or protection-layer cookie expires   | `AUTH_REQUIRED` with an instruction to log in again; no blind retries.                                                                    |
+| Admin disables the REST API or hides the key | Clear `AUTH_REQUIRED` message; no fallback implemented.                                                                                   |
+| Redmine upgrade changes the key page         | Three retrieval strategies plus masked diagnostics.                                                                                       |
+| Chrome closed or wrong profile               | `NOT_CONNECTED` fails fast.                                                                                                               |
+| Any local process can use the daemon         | Loopback and Host/Origin checks, `READ_ONLY=1`; accepted trade-off.                                                                       |
+| Prompt injection through issue text          | Write approval stays on; no generic fetch; no delete.                                                                                     |
+| MV3 worker sleeps                            | Ping keep-alive, `chrome.alarms` restart, reconnect with backoff; `restart()` is serialised so overlapping events cannot start two links. |
 
-Not done: systemd user unit for the daemon, content-script fallback, long soak test of the worker, publishing the repo for teammates (the folder is not a git repository yet).
+Not built (by choice): a systemd unit for the daemon, a content-script fallback (never needed), delete tools, a generic fetch tool.

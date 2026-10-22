@@ -1,23 +1,73 @@
 <!doctype html>
-<meta charset="utf-8">
+<meta charset="utf-8" />
 <title>Redmine Bridge</title>
 <style>
-  body { font: 13px system-ui, sans-serif; margin: 0; padding: 14px; width: 300px; }
-  h1 { font-size: 15px; margin: 0 0 10px; }
-  label { display: block; margin: 10px 0 3px; color: #555; }
-  input { width: 100%; padding: 6px; box-sizing: border-box; }
-  button { margin-top: 12px; padding: 6px 14px; }
-  #conn, #message { margin-top: 10px; min-height: 1em; }
-  .ok { color: #1a7f37; }
-  .error { color: #cf222e; }
-  @media (prefers-color-scheme: dark) { body { background: #1f1f1f; color: #e6e6e6; } label { color: #aaa; } .ok { color: #3fb950; } .error { color: #ff7b72; } }
+  body {
+    font:
+      13px system-ui,
+      sans-serif;
+    margin: 0;
+    padding: 14px;
+    width: 300px;
+  }
+  h1 {
+    font-size: 15px;
+    margin: 0 0 10px;
+  }
+  label {
+    display: block;
+    margin: 10px 0 3px;
+    color: #555;
+  }
+  input {
+    width: 100%;
+    padding: 6px;
+    box-sizing: border-box;
+  }
+  button {
+    margin-top: 12px;
+    padding: 6px 14px;
+  }
+  #conn,
+  #message {
+    margin-top: 10px;
+    min-height: 1em;
+  }
+  #extid {
+    margin-top: 10px;
+    color: #777;
+    font-size: 11px;
+    word-break: break-all;
+  }
+  .ok {
+    color: #1a7f37;
+  }
+  .error {
+    color: #cf222e;
+  }
+  @media (prefers-color-scheme: dark) {
+    body {
+      background: #1f1f1f;
+      color: #e6e6e6;
+    }
+    label {
+      color: #aaa;
+    }
+    .ok {
+      color: #3fb950;
+    }
+    .error {
+      color: #ff7b72;
+    }
+  }
 </style>
 <h1>Redmine Bridge</h1>
 <label for="domain">Redmine address</label>
-<input id="domain" placeholder="https://redmine.example.com" autocomplete="off">
+<input id="domain" placeholder="https://redmine.example.com" autocomplete="off" />
 <label for="port">Daemon port</label>
-<input id="port" inputmode="numeric" autocomplete="off">
+<input id="port" inputmode="numeric" autocomplete="off" />
 <button id="save">Save</button>
 <div id="message"></div>
 <div id="conn"></div>
+<div id="extid"></div>
 <script src="popup.js"></script>

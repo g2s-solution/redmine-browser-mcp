@@ -20,19 +20,38 @@ function fakeRedmine() {
   const state = { key: KEY, loggedIn: true, issueStatus: "New", notes: [] as string[], writes: 0 };
   const server: Server = createServer((req, res) => {
     const url = new URL(req.url!, "http://x");
-    const send = (status: number, body: unknown, type = "application/json") => res.writeHead(status, { "content-type": type }).end(typeof body === "string" ? body : JSON.stringify(body));
+    const send = (status: number, body: unknown, type = "application/json") =>
+      res.writeHead(status, { "content-type": type }).end(typeof body === "string" ? body : JSON.stringify(body));
     if (!state.loggedIn) return void res.writeHead(302, { location: "https://sso.example/login" }).end();
     let raw = "";
     req.on("data", (c) => (raw += c));
     req.on("end", () => {
-      if (url.pathname === "/my/api_key") return send(200, `<pre id="api-access-key" class="autoscroll">${state.key}</pre>`, "text/html");
-      if (url.pathname === "/my/account") return send(200, `<html><head><meta name="csrf-token" content="${CSRF}" /></head></html>`, "text/html");
+      if (url.pathname === "/my/api_key")
+        return send(200, `<pre id="api-access-key" class="autoscroll">${state.key}</pre>`, "text/html");
+      if (url.pathname === "/my/account")
+        return send(200, `<html><head><meta name="csrf-token" content="${CSRF}" /></head></html>`, "text/html");
       if (url.pathname.endsWith(".json") && req.headers["x-redmine-api-key"] !== state.key) {
-        return void res.writeHead(401, { "content-type": "application/json", "www-authenticate": 'Basic realm="Redmine API"' }).end();
+        return void res
+          .writeHead(401, { "content-type": "application/json", "www-authenticate": 'Basic realm="Redmine API"' })
+          .end();
       }
-      if (url.pathname === "/users/current.json") return send(200, { user: { id: 5, login: "khoi", firstname: "Khoi", lastname: "N", mail: "k@x", api_key: state.key } });
+      if (url.pathname === "/users/current.json")
+        return send(200, {
+          user: { id: 5, login: "khoi", firstname: "Khoi", lastname: "N", mail: "k@x", api_key: state.key },
+        });
       if (url.pathname === "/issues.json" && req.method === "GET") {
-        return send(200, { total_count: 1, offset: 0, issues: [{ id: 1, subject: `q=${url.searchParams.get("status_id")}`, status: { name: state.issueStatus }, project: { name: "P" } }] });
+        return send(200, {
+          total_count: 1,
+          offset: 0,
+          issues: [
+            {
+              id: 1,
+              subject: `q=${url.searchParams.get("status_id")}`,
+              status: { name: state.issueStatus },
+              project: { name: "P" },
+            },
+          ],
+        });
       }
       if (url.pathname === "/issues/1.json" && req.method === "PUT") {
         if (req.headers["x-csrf-token"] !== CSRF) return send(422, "", "text/plain");
@@ -46,19 +65,36 @@ function fakeRedmine() {
       send(404, {});
     });
   });
-  return new Promise<{ server: Server; state: typeof state; url: string }>((r) => server.listen(0, "127.0.0.1", () => r({ server, state, url: `http://127.0.0.1:${(server.address() as any).port}` })));
+  return new Promise<{ server: Server; state: typeof state; url: string }>((r) =>
+    server.listen(0, "127.0.0.1", () =>
+      r({ server, state, url: `http://127.0.0.1:${(server.address() as any).port}` }),
+    ),
+  );
 }
 
 let cleanup: Array<() => Promise<void> | void> = [];
-afterEach(async () => { for (const c of cleanup.reverse()) await c(); cleanup = []; });
+afterEach(async () => {
+  for (const c of cleanup.reverse()) await c();
+  cleanup = [];
+});
 
 async function stack(over = {}) {
   const rm = await fakeRedmine();
-  cleanup.push(() => new Promise<void>((r) => { rm.server.close(() => r()); rm.server.closeAllConnections(); }));
+  cleanup.push(
+    () =>
+      new Promise<void>((r) => {
+        rm.server.close(() => r());
+        rm.server.closeAllConnections();
+      }),
+  );
   const { app, port, config } = await startApp(over);
   cleanup.push(() => app.close());
   const ex = new RedmineExecutor(fetch, rm.url);
-  const link = startLink({ url: `ws://127.0.0.1:${port}/ext`, WebSocketCtor: ExtensionWebSocket as any, handle: (m) => ex.handle(m) });
+  const link = startLink({
+    url: `ws://127.0.0.1:${port}/ext`,
+    WebSocketCtor: ExtensionWebSocket as any,
+    handle: (m) => ex.handle(m),
+  });
   cleanup.push(() => link.stop());
   await until(() => app.bridge.connected);
   const client = new Client({ name: "e2e", version: "0" });
@@ -96,7 +132,11 @@ describe("end to end: MCP client -> daemon -> extension core -> fake Redmine", (
 
   it("never exposes the API key to the MCP client, even when Redmine echoes it", async () => {
     const { call } = await stack();
-    const outputs = [await call("get_current_user"), await call("list_issues"), await call("update_issue", { id: 1, status_id: 99 })];
+    const outputs = [
+      await call("get_current_user"),
+      await call("list_issues"),
+      await call("update_issue", { id: 1, status_id: 99 }),
+    ];
     for (const o of outputs) expect(o.text).not.toContain(KEY);
   });
 

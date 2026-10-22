@@ -1,6 +1,6 @@
 # Redmine MCP bridge
 
-Claude Code → MCP (HTTP, loopback) → local daemon → WebSocket → Chrome extension → your Redmine, using your logged-in browser session. Cookies never leave Chrome. Design: [PLAN.md](PLAN.md). Status: [PROGRESS.md](PROGRESS.md).
+Claude Code → MCP (HTTP, loopback) → local daemon → WebSocket → Chrome extension → your Redmine, using your logged-in browser session. Cookies never leave Chrome. Design: [DESIGN.md](DESIGN.md).
 
 ## Requirements
 
@@ -12,6 +12,7 @@ Node 22+, Chrome (or Chromium-based browser), Claude Code. Each member runs thei
 2. Start the daemon and leave it running: `npm run daemon`
    - `READ_ONLY=1 npm run daemon` disables every write tool (recommended until you trust it).
    - Port clash: `REDMINE_MCP_PORT=7400 npm run daemon`, then use the same port in steps 4 and 6.
+   - Optional: `REDMINE_MCP_EXTENSION_ID=<id>` pins the extension (the id is shown at the bottom of the popup); `REDMINE_MCP_TIMEOUT_MS` (default 20000) and `REDMINE_MCP_STATE_DIR` (audit log location) also exist. Invalid values stop the daemon at startup.
 3. Chrome: open `chrome://extensions`, enable Developer mode, **Load unpacked**, select `extension/dist`.
 4. Click the extension icon: enter your Redmine address (e.g. `https://redmine.example.com`) and the daemon port (default 7399), then **Save**. Chrome asks you once to allow the extension to access that site (the badge shows `?` until an address is saved). The popup shows whether the daemon is connected and the toolbar badge shows `ON`.
 5. In that same Chrome profile, log in to your Redmine (including any protection layer in front of it). Log in again whenever the session expires.
@@ -33,18 +34,18 @@ Write tools (`update_issue`, `add_note`, `create_issue`, `log_time`) act as you 
 
 ## Troubleshooting
 
-| Symptom | Cause / fix |
-|---|---|
-| `NOT_CONNECTED` | Daemon not running, extension badge not `ON`, or wrong port in the extension popup. |
-| `AUTH_REQUIRED: could not read the API access key` | Your account page shows no API key: the REST API is disabled in Redmine (Administration → Settings → API) or your account may not use it. Ask a Redmine admin. |
-| `AUTH_REQUIRED` | Redmine or protection-layer session expired or you are not logged in: open Redmine in Chrome and log in. If it persists while logged in, the extension's fetch is being challenged; tell the maintainers (fallback: content-script mode, see PLAN.md). |
-| `FORBIDDEN_PATH` | The endpoint is not on the allowlist in `shared/protocol.ts` (by design). |
-| `VALIDATION: ...` | Redmine rejected the data, e.g. an invalid status for the workflow. Use `list_statuses`, `list_trackers` etc. to get valid ids. |
-| `CSRF` | Token rejected twice; reload the Redmine tab, log in again. |
-| Extension changes not taking effect | After `npm run build:ext`, remove and re-add the unpacked extension (or reload it) and compare the `build` value in `curl localhost:7399/health` with the stamp in `extension/dist/worker.js`. |
-| `EADDRINUSE` on daemon start | A daemon is already running on that port; stop it (`pkill -f "[d]aemon/src/index.ts"`) or use another `REDMINE_MCP_PORT`. |
-| `TIMEOUT` | Chrome asleep or worker restarting; retry. |
-| Tools missing | Daemon started with `READ_ONLY=1`, or the MCP server is not approved in Claude Code. |
+| Symptom                                            | Cause / fix                                                                                                                                                                                                                                                                |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NOT_CONNECTED`                                    | Daemon not running, extension badge not `ON`, or wrong port in the extension popup.                                                                                                                                                                                        |
+| `AUTH_REQUIRED: could not read the API access key` | Your account page shows no API key: the REST API is disabled in Redmine (Administration → Settings → API) or your account may not use it. Ask a Redmine admin.                                                                                                             |
+| `AUTH_REQUIRED`                                    | Redmine or protection-layer session expired or you are not logged in: open Redmine in Chrome and log in. If it persists while logged in, the extension's fetch is being challenged; tell the maintainers (a content-script fetch is the possible fallback, see DESIGN.md). |
+| `FORBIDDEN_PATH`                                   | The endpoint is not on the allowlist in `shared/protocol.ts` (by design).                                                                                                                                                                                                  |
+| `VALIDATION: ...`                                  | Redmine rejected the data, e.g. an invalid status for the workflow. Use `list_statuses`, `list_trackers` etc. to get valid ids.                                                                                                                                            |
+| `CSRF`                                             | Token rejected twice; reload the Redmine tab, log in again.                                                                                                                                                                                                                |
+| Extension changes not taking effect                | After `npm run build:ext`, remove and re-add the unpacked extension (or reload it) and compare the `build` value in `curl localhost:7399/health` with the stamp in `extension/dist/worker.js`.                                                                             |
+| `EADDRINUSE` on daemon start                       | A daemon is already running on that port; stop it (`pkill -f "[d]aemon/src/index.ts"`) or use another `REDMINE_MCP_PORT`.                                                                                                                                                  |
+| `TIMEOUT`                                          | Chrome asleep or worker restarting; retry.                                                                                                                                                                                                                                 |
+| Tools missing                                      | Daemon started with `READ_ONLY=1`, or the MCP server is not approved in Claude Code.                                                                                                                                                                                       |
 
 ## Security notes
 
@@ -62,4 +63,4 @@ Tip: a project only accepts its enabled trackers. Redmine silently falls back to
 
 ## Development
 
-`npm test` (unit, integration, end-to-end with a fake Redmine), `npm run typecheck`. Project conventions for Claude are in `CLAUDE.md`; a hook typechecks after every `.ts` edit.
+`npm run ci` runs what GitHub Actions runs: typecheck, ESLint, Prettier check, tests with coverage, and the extension build. Individually: `npm test`, `npm run typecheck`, `npm run lint`, `npm run format` (writes), `npm run format:check`, `npm run test:coverage`. A pull request needs a green CI before merging. Project conventions for Claude are in `CLAUDE.md`; a hook typechecks after every `.ts` edit.

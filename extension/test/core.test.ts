@@ -4,9 +4,20 @@ import { extractApiKey, extractCsrf, RedmineExecutor } from "../src/core.js";
 const BASE = "https://r.test";
 const KEY = "0123456789abcdef0123456789abcdef01234567";
 const html = (body: string, status = 200) => new Response(body, { status, headers: { "content-type": "text/html" } });
-const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json" } });
-const unauthorized = () => new Response("", { status: 401, headers: { "content-type": "application/json", "www-authenticate": 'Basic realm="Redmine API"' } });
-const req = (over: any = {}) => ({ id: "1", type: "http" as const, method: "GET" as const, path: "/issues.json", ...over });
+const json = (o: unknown, status = 200) =>
+  new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json" } });
+const unauthorized = () =>
+  new Response("", {
+    status: 401,
+    headers: { "content-type": "application/json", "www-authenticate": 'Basic realm="Redmine API"' },
+  });
+const req = (over: any = {}) => ({
+  id: "1",
+  type: "http" as const,
+  method: "GET" as const,
+  path: "/issues.json",
+  ...over,
+});
 
 type Api = (url: string, init: any) => Response | Promise<Response>;
 
@@ -77,7 +88,9 @@ describe("GET with the session-derived API key", () => {
 
   it("reports AUTH_REQUIRED when the key keeps being rejected", async () => {
     const s = site(() => unauthorized());
-    s.fn.mockImplementation(async (url: string) => (new URL(url).pathname === "/my/api_key" ? html(`<pre id="api-access-key">${KEY}</pre>`) : unauthorized()));
+    s.fn.mockImplementation(async (url: string) =>
+      new URL(url).pathname === "/my/api_key" ? html(`<pre id="api-access-key">${KEY}</pre>`) : unauthorized(),
+    );
     s.state.key = KEY;
     expect(await s.exec.handle(req())).toMatchObject({ ok: false, error: { code: "AUTH_REQUIRED" } });
   });
@@ -97,7 +110,9 @@ describe("GET with the session-derived API key", () => {
   it("refuses paths outside the allowlist without fetching", async () => {
     const f = vi.fn();
     for (const path of ["/admin", "/my/account", "/my/api_key"]) {
-      expect(await new RedmineExecutor(f as any, BASE).handle(req({ path }))).toMatchObject({ error: { code: "FORBIDDEN_PATH" } });
+      expect(await new RedmineExecutor(f as any, BASE).handle(req({ path }))).toMatchObject({
+        error: { code: "FORBIDDEN_PATH" },
+      });
     }
     expect(f).not.toHaveBeenCalled();
   });
@@ -113,8 +128,14 @@ describe("GET with the session-derived API key", () => {
   it("maps 404, json 403, 500 and network failure", async () => {
     expect(await site(() => json({}, 404)).exec.handle(req())).toMatchObject({ error: { code: "NOT_FOUND" } });
     expect(await site(() => json({}, 403)).exec.handle(req())).toMatchObject({ error: { code: "HTTP", status: 403 } });
-    expect(await site(() => html("boom", 500)).exec.handle(req())).toMatchObject({ error: { code: "HTTP", status: 500 } });
-    expect(await site(() => { throw new Error("offline"); }).exec.handle(req())).toMatchObject({ error: { code: "NETWORK", message: "offline" } });
+    expect(await site(() => html("boom", 500)).exec.handle(req())).toMatchObject({
+      error: { code: "HTTP", status: 500 },
+    });
+    expect(
+      await site(() => {
+        throw new Error("offline");
+      }).exec.handle(req()),
+    ).toMatchObject({ error: { code: "NETWORK", message: "offline" } });
   });
 });
 
@@ -137,11 +158,23 @@ describe("the API key never leaves the executor", () => {
     const s = site(() => json({ errors: [`bad ${KEY}`] }, 422));
     const r = await s.exec.handle(req({ method: "PUT", path: "/issues/1.json", body: { issue: {} } }));
     expect(r).toMatchObject({ error: { code: "VALIDATION" } });
+    expect(JSON.stringify(r)).not.toContain(KEY);
+  });
+
+  it("never puts the CSRF token in diagnostics or error details", async () => {
+    const csrf = "abcDEF+ghi/JKL0123456789mnoPQRstu==";
+    const s = site(() => html(`<html>oops ${csrf} and ${csrf}</html>`, 500), { key: KEY, csrf, loggedIn: true });
+    const r = await s.exec.handle(req({ method: "PUT", path: "/issues/1.json", body: { issue: {} } }));
+    expect(JSON.stringify(r)).not.toContain(csrf);
+    const s2 = site(() => html(`<html>${csrf}</html>`, 403), { key: KEY, csrf, loggedIn: true });
+    await s2.exec.handle(req({ method: "PUT", path: "/issues/1.json", body: { issue: {} } }));
+    expect(JSON.stringify(await s2.exec.handle(req()))).not.toContain(csrf);
   });
 });
 
 describe("writes", () => {
-  const put = (over: any = {}) => req({ method: "PUT", path: "/issues/1.json", body: { issue: { notes: "x" } }, ...over });
+  const put = (over: any = {}) =>
+    req({ method: "PUT", path: "/issues/1.json", body: { issue: { notes: "x" } }, ...over });
 
   it("sends key and CSRF token, returns ok on 204, fetches the token once", async () => {
     const s = site(() => new Response(null, { status: 204 }));
@@ -156,7 +189,9 @@ describe("writes", () => {
     let writes = 0;
     const s = site((_u, init) => {
       writes++;
-      return init.headers["x-csrf-token"] === "NEW" ? new Response(null, { status: 204 }) : new Response("", { status: 422 });
+      return init.headers["x-csrf-token"] === "NEW"
+        ? new Response(null, { status: 204 })
+        : new Response("", { status: 422 });
     });
     s.state.csrf = "OLD";
     const first = s.exec.handle(put());
@@ -165,7 +200,9 @@ describe("writes", () => {
       if (p === "/my/api_key") return html(`<pre id="api-access-key">${KEY}</pre>`);
       if (p === "/my/account") return html(`<meta name="csrf-token" content="${writes === 0 ? "OLD" : "NEW"}" />`);
       writes++;
-      return init.headers["x-csrf-token"] === "NEW" ? new Response(null, { status: 204 }) : new Response("", { status: 422 });
+      return init.headers["x-csrf-token"] === "NEW"
+        ? new Response(null, { status: 204 })
+        : new Response("", { status: 422 });
     });
     expect(await first).toMatchObject({ ok: true });
     expect(writes).toBe(2);
@@ -178,12 +215,36 @@ describe("writes", () => {
 
   it("returns validation errors from a json 422 without retrying", async () => {
     let writes = 0;
-    const s = site(() => { writes++; return json({ errors: ["Subject cannot be blank"] }, 422); });
-    expect(await s.exec.handle(put())).toMatchObject({ error: { code: "VALIDATION", details: ["Subject cannot be blank"] } });
+    const s = site(() => {
+      writes++;
+      return json({ errors: ["Subject cannot be blank"] }, 422);
+    });
+    expect(await s.exec.handle(put())).toMatchObject({
+      error: { code: "VALIDATION", details: ["Subject cannot be blank"] },
+    });
     expect(writes).toBe(1);
   });
 
+  it("reports a redirect while loading the CSRF page as AUTH_REQUIRED, and other failures as NETWORK", async () => {
+    const make = (status: number) =>
+      new RedmineExecutor(
+        (async (url: string, init: any = {}) => {
+          const p = new URL(url).pathname;
+          if (p === "/my/api_key") return html(`<pre id="api-access-key">${KEY}</pre>`);
+          if (p === "/my/account") return status === 302 ? new Response(null, { status }) : html("", status);
+          return init.headers?.["x-redmine-api-key"] === KEY ? json({}) : unauthorized();
+        }) as any,
+        BASE,
+      );
+    expect(await make(302).handle(put())).toMatchObject({ error: { code: "AUTH_REQUIRED" } });
+    expect(await make(500).handle(put())).toMatchObject({
+      error: { code: "NETWORK", message: expect.stringContaining("HTTP 500") },
+    });
+  });
+
   it("refuses DELETE", async () => {
-    expect(await site(() => json({})).exec.handle(put({ method: "DELETE" }))).toMatchObject({ error: { code: "FORBIDDEN_PATH" } });
+    expect(await site(() => json({})).exec.handle(put({ method: "DELETE" }))).toMatchObject({
+      error: { code: "FORBIDDEN_PATH" },
+    });
   });
 });

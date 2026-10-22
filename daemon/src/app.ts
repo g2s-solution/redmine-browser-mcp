@@ -35,7 +35,7 @@ export interface App {
 }
 
 export function createApp(config: Config): App {
-  const bridge = new Bridge({ ...config, log: config.log });
+  const bridge = new Bridge(config);
   const client = new RedmineClient(bridge);
   const audit = createAudit(config.auditPath);
 
@@ -46,7 +46,14 @@ export function createApp(config: Config): App {
       return;
     }
     if (url.pathname === "/health") {
-      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, extensionConnected: bridge.connected, extension: bridge.hello, readOnly: config.readOnly }));
+      res.writeHead(200, { "content-type": "application/json" }).end(
+        JSON.stringify({
+          ok: true,
+          extensionConnected: bridge.connected,
+          extension: bridge.hello,
+          readOnly: config.readOnly,
+        }),
+      );
       return;
     }
     if (url.pathname !== "/mcp") {

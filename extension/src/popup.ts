@@ -5,6 +5,7 @@ const domain = $<HTMLInputElement>("domain");
 const port = $<HTMLInputElement>("port");
 const message = $("message");
 const conn = $("conn");
+$("extid").textContent = `Extension ID (to pin with REDMINE_MCP_EXTENSION_ID): ${chrome.runtime.id}`;
 
 function say(text: string, isError = false): void {
   message.textContent = text;

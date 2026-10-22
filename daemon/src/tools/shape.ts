@@ -1,8 +1,19 @@
 const name = (x: any) => (x ? x.name : null);
 
-export const shapeUser = (u: any) => ({ id: u.id, login: u.login, name: u.name ?? `${u.firstname ?? ""} ${u.lastname ?? ""}`.trim(), mail: u.mail });
+export const shapeUser = (u: any) => ({
+  id: u.id,
+  login: u.login,
+  name: u.name ?? `${u.firstname ?? ""} ${u.lastname ?? ""}`.trim(),
+  mail: u.mail,
+});
 
-export const shapeProject = (p: any) => ({ id: p.id, identifier: p.identifier, name: p.name, status: p.status, description: p.description });
+export const shapeProject = (p: any) => ({
+  id: p.id,
+  identifier: p.identifier,
+  name: p.name,
+  status: p.status,
+  description: p.description,
+});
 
 export const shapeIssueRow = (i: any) => ({
   id: i.id,
@@ -19,7 +30,8 @@ export const shapeIssueRow = (i: any) => ({
 });
 
 const MAX_JOURNAL_TEXT = 2000;
-const clip = (s: string | undefined) => (s && s.length > MAX_JOURNAL_TEXT ? s.slice(0, MAX_JOURNAL_TEXT) + "…[truncated]" : s);
+const clip = (s: string | undefined) =>
+  s && s.length > MAX_JOURNAL_TEXT ? s.slice(0, MAX_JOURNAL_TEXT) + "…[truncated]" : s;
 
 export const shapeIssue = (i: any) => ({
   ...shapeIssueRow(i),
@@ -29,7 +41,11 @@ export const shapeIssue = (i: any) => ({
   parent: i.parent?.id ?? null,
   custom_fields: (i.custom_fields ?? []).map((f: any) => ({ name: f.name, value: f.value })),
   children: (i.children ?? []).map((c: any) => ({ id: c.id, subject: c.subject, tracker: name(c.tracker) })),
-  relations: (i.relations ?? []).map((r: any) => ({ type: r.relation_type, issue_id: r.issue_id, issue_to_id: r.issue_to_id })),
+  relations: (i.relations ?? []).map((r: any) => ({
+    type: r.relation_type,
+    issue_id: r.issue_id,
+    issue_to_id: r.issue_to_id,
+  })),
   attachments: (i.attachments ?? []).map((a: any) => ({ id: a.id, filename: a.filename, size: a.filesize })),
   journals: (i.journals ?? []).map((j: any) => ({
     id: j.id,
@@ -37,8 +53,18 @@ export const shapeIssue = (i: any) => ({
     created_on: j.created_on,
     private: !!j.private_notes,
     notes: clip(j.notes),
-    changes: (j.details ?? []).map((d: any) => ({ property: d.property, name: d.name, old: d.old_value, new: d.new_value })),
+    changes: (j.details ?? []).map((d: any) => ({
+      property: d.property,
+      name: d.name,
+      old: d.old_value,
+      new: d.new_value,
+    })),
   })),
 });
 
-export const shapeNamed = (x: any) => ({ id: x.id, name: x.name, ...(x.is_closed !== undefined ? { is_closed: x.is_closed } : {}), ...(x.is_default !== undefined ? { is_default: x.is_default } : {}) });
+export const shapeNamed = (x: any) => ({
+  id: x.id,
+  name: x.name,
+  ...(x.is_closed !== undefined ? { is_closed: x.is_closed } : {}),
+  ...(x.is_default !== undefined ? { is_default: x.is_default } : {}),
+});

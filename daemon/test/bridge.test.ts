@@ -20,7 +20,11 @@ function connect(port: number, origin: string | null = EXT_ORIGIN) {
   cleanup.push(() => ws.close());
   return ws;
 }
-const opened = (ws: WebSocket) => new Promise<void>((res, rej) => { ws.on("open", res); ws.on("error", rej); });
+const opened = (ws: WebSocket) =>
+  new Promise<void>((res, rej) => {
+    ws.on("open", res);
+    ws.on("error", rej);
+  });
 const rejected = (ws: WebSocket) => new Promise<string>((res) => ws.on("error", (e) => res(e.message)));
 
 describe("helpers", () => {
@@ -51,13 +55,34 @@ describe("Bridge auth", () => {
     await opened(connect(port));
     await until(() => app.bridge.connected);
   });
+  it("accepts loopback Host names with a port", async () => {
+    const { port } = await boot();
+    const get = (host: string) =>
+      new Promise<number>((res, rej) => {
+        const r = request({ host: "127.0.0.1", port, path: "/health", headers: { host } }, (m) => {
+          m.resume();
+          res(m.statusCode!);
+        });
+        r.on("error", rej);
+        r.end();
+      });
+    expect(await get(`localhost:${port}`)).toBe(200);
+    expect(await get(`127.0.0.1:${port}`)).toBe(200);
+    expect(await get(`[::1]:${port}`)).toBe(200);
+    expect(await get("evil.example.com")).toBe(403);
+  });
+
   it("refuses a rebinding Host header and a browser Origin on /mcp", async () => {
     const { port } = await boot();
-    const status = (headers: Record<string, string>) => new Promise<number>((res, rej) => {
-      const r = request({ host: "127.0.0.1", port, path: "/mcp", method: "POST", headers }, (m) => { m.resume(); res(m.statusCode!); });
-      r.on("error", rej);
-      r.end("{}");
-    });
+    const status = (headers: Record<string, string>) =>
+      new Promise<number>((res, rej) => {
+        const r = request({ host: "127.0.0.1", port, path: "/mcp", method: "POST", headers }, (m) => {
+          m.resume();
+          res(m.statusCode!);
+        });
+        r.on("error", rej);
+        r.end("{}");
+      });
     expect(await status({ host: "evil.example.com" })).toBe(403);
     expect(await status({ origin: "https://evil.com" })).toBe(403);
   });
@@ -101,7 +126,10 @@ describe("Bridge request/response", () => {
     const { port, app } = await boot({ requestTimeoutMs: 100 });
     await opened(connect(port));
     await until(() => app.bridge.connected);
-    expect(await app.bridge.request({ method: "GET", path: "/issues.json" })).toMatchObject({ ok: false, error: { code: "TIMEOUT" } });
+    expect(await app.bridge.request({ method: "GET", path: "/issues.json" })).toMatchObject({
+      ok: false,
+      error: { code: "TIMEOUT" },
+    });
   });
 
   it("fails pending requests when the extension disconnects", async () => {
@@ -112,6 +140,29 @@ describe("Bridge request/response", () => {
     const p = app.bridge.request({ method: "GET", path: "/issues.json" });
     ws.close();
     expect(await p).toMatchObject({ ok: false, error: { code: "NETWORK" } });
+  });
+
+  it("fails requests pending on a socket that gets replaced", async () => {
+    const { port, app } = await boot();
+    const a = connect(port);
+    await opened(a);
+    await until(() => app.bridge.connected);
+    const pending = app.bridge.request({ method: "GET", path: "/issues.json" });
+    await opened(connect(port));
+    expect(await pending).toMatchObject({
+      ok: false,
+      error: { code: "NETWORK", message: expect.stringContaining("reconnected") },
+    });
+  });
+
+  it("ignores non-object and malformed messages without crashing", async () => {
+    const { port, app } = await boot();
+    const ws = connect(port);
+    await opened(ws);
+    for (const junk of ["null", "42", '"x"', "{not json"]) ws.send(junk);
+    ws.send(JSON.stringify({ type: "hello", version: "1", build: "b" }));
+    await until(() => app.bridge.hello?.build === "b");
+    expect(app.bridge.connected).toBe(true);
   });
 
   it("a newer connection replaces the older one", async () => {
