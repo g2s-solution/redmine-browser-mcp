@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Redmine Bridge",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Lets a local MCP daemon call Redmine with your logged-in browser session.",
   "background": {
     "service_worker": "worker.js",
