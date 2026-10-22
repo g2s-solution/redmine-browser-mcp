@@ -13,7 +13,7 @@ Node 22+, Chrome (or Chromium-based browser), Claude Code. Each member runs thei
    - `READ_ONLY=1 npm run daemon` disables every write tool (recommended until you trust it).
    - Port clash: `REDMINE_MCP_PORT=7400 npm run daemon`, then use the same port in steps 4 and 6.
    - Optional: `REDMINE_MCP_EXTENSION_ID=<id>` pins the extension (the id is shown at the bottom of the popup); `REDMINE_MCP_TIMEOUT_MS` (default 20000) and `REDMINE_MCP_STATE_DIR` (audit log location) also exist. Invalid values stop the daemon at startup.
-3. Chrome: open `chrome://extensions`, enable Developer mode, **Load unpacked**, select `extension/dist`.
+3. Chrome: open `chrome://extensions`, enable Developer mode, **Load unpacked**, select `extension/dist` (or the unzipped release, see below).
 4. Click the extension icon: enter your Redmine address (e.g. `https://redmine.example.com`) and the daemon port (default 7399), then **Save**. Chrome asks you once to allow the extension to access that site (the badge shows `?` until an address is saved). The popup shows whether the daemon is connected and the toolbar badge shows `ON`.
 5. In that same Chrome profile, log in to your Redmine (including any protection layer in front of it). Log in again whenever the session expires.
 6. Register the MCP server with Claude Code. The repo ships `.mcp.json`: start `claude` from this repo and approve the `redmine-bridge` server. To use it from another project instead:
@@ -21,6 +21,18 @@ Node 22+, Chrome (or Chromium-based browser), Claude Code. Each member runs thei
    claude mcp add --transport http redmine-bridge http://127.0.0.1:7399/mcp
    ```
 7. Verify: `npm run smoke` prints your user and 3 of your assigned issues. `curl localhost:7399/health` shows whether the extension is connected and which build.
+
+## Install the extension from a release
+
+Chrome cannot install an extension straight from a GitHub URL, but you do not need to build it:
+
+1. Download `redmine-bridge-extension-<version>.zip` from the [Releases](../../releases) page and unzip it somewhere permanent (Chrome loads it from that folder).
+2. `chrome://extensions` → Developer mode → **Load unpacked** → select the unzipped folder.
+3. To update, download the newer zip, replace the folder contents and click the reload icon on the extension.
+
+The daemon still runs from a clone of this repo (`npm install && npm run daemon`).
+
+Maintainers: bump `version` in `extension/manifest.json` and `package.json`, merge, then push a tag `v<version>`; the Release workflow verifies the tag matches the manifest, runs `npm run ci`, zips `extension/dist` and publishes the release.
 
 ## How authentication works
 
