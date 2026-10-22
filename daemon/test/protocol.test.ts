@@ -14,10 +14,14 @@ describe("isAllowedRequest", () => {
     ["POST", "/issues.json"],
     ["POST", "/time_entries.json"],
     ["PUT", "/issues/12.json"],
+    ["DELETE", "/issues/12.json"],
   ])("allows %s %s", (m, p) => expect(isAllowedRequest(m, p)).toBe(true));
 
   it.each([
-    ["DELETE", "/issues/12.json"],
+    ["DELETE", "/issues.json"],
+    ["DELETE", "/time_entries/1.json"],
+    ["DELETE", "/projects/p.json"],
+    ["DELETE", "/users/5.json"],
     ["PUT", "/issues.json"],
     ["POST", "/issues/12.json"],
     ["GET", "/admin"],

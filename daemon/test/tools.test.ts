@@ -202,10 +202,31 @@ describe("write tools", () => {
     expect((await call("get_current_user")).text).not.toContain("may or may not");
   });
 
+  it("delete_issue deletes only when confirm_id matches, and is marked destructive", async () => {
+    const { call, calls, client, auditPath } = await setup(() => ok());
+    const mismatch = await call("delete_issue", { id: 5, confirm_id: 6 });
+    expect(mismatch.isError).toBe(true);
+    expect(mismatch.text).toContain("nothing was deleted");
+    expect(calls).toHaveLength(0);
+    const r = await call("delete_issue", { id: 5, confirm_id: 5 });
+    expect(r.json).toEqual({ ok: true, id: 5, deleted: true });
+    expect(calls[0]).toMatchObject({ method: "DELETE", path: "/issues/5.json" });
+    expect(JSON.parse(readFileSync(auditPath, "utf8").trim().split("\n").at(-1)!)).toMatchObject({
+      tool: "delete_issue",
+      ok: true,
+    });
+    const tool = (await client.listTools()).tools.find((x) => x.name === "delete_issue");
+    expect(tool?.annotations?.destructiveHint).toBe(true);
+    expect((await client.listTools()).tools.find((x) => x.name === "update_issue")?.annotations?.destructiveHint).toBe(
+      false,
+    );
+  });
+
   it("READ_ONLY hides write tools", async () => {
     const { client } = await setup(() => ok(), true);
     const names = (await client.listTools()).tools.map((t) => t.name);
     expect(names).toContain("get_issue");
-    for (const w of ["update_issue", "add_note", "create_issue", "log_time"]) expect(names).not.toContain(w);
+    for (const w of ["update_issue", "add_note", "create_issue", "log_time", "delete_issue"])
+      expect(names).not.toContain(w);
   });
 });

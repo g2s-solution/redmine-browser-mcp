@@ -38,18 +38,18 @@ Rejected alternatives: scraping HTML/CSV (large, brittle, no `DOMParser` in the 
 - Daemon binds to `127.0.0.1` only. There is no shared token (decision: simpler setup). Instead it rejects any non-loopback `Host` (DNS rebinding), rejects `/mcp` requests that carry a browser `Origin`, and accepts the WebSocket only from `chrome-extension://` (optionally pinned with `REDMINE_MCP_EXTENSION_ID`). Trade-off: any local process running as the user can call the tools; `READ_ONLY=1` removes the write tools.
 - A write whose reply is lost (timeout, reconnect) may still have been applied; the tool error says so, because retrying `create_issue` or `log_time` could duplicate it.
 - The extension reaches only the Redmine origin the user saved in the popup: access to that origin is granted at runtime through a Chrome permission prompt (`optional_host_permissions`); there are no static host permissions. No `cookies` permission.
-- Fixed, typed tools only; no generic "fetch any URL" tool; no delete.
+- Fixed, typed tools only; no generic "fetch any URL" tool. The only delete is `delete_issue`: `DELETE /issues/<id>.json` is the single DELETE on the allowlist, and the tool needs `confirm_id` to repeat the id and is annotated destructive so Claude Code asks first.
 - Write tools are hidden under `READ_ONLY=1`, carry MCP annotations so Claude Code asks for approval, and are appended to `~/.local/state/redmine-mcp/audit.log` (tool, arguments, outcome; no secrets).
 - Long journal entries are truncated; attachments are metadata only.
 
 ## 4. MCP tools
 
 Read: `get_current_user`, `list_projects`, `list_issues`, `get_issue`, `search_issues`, `list_statuses`, `list_trackers`, `list_project_trackers`, `list_priorities`, `list_time_entry_activities`, `list_versions`, `list_project_members`.
-Write: `update_issue` (tracker, status, assignee, priority, done ratio, version, due date, subject, note), `add_note`, `create_issue`, `log_time`.
+Write: `delete_issue`, `update_issue` (tracker, status, assignee, priority, done ratio, version, due date, subject, note), `add_note`, `create_issue`, `log_time`.
 
 Gotcha found on the real site: `create_issue` with a tracker that is not enabled for the project is not rejected; Redmine silently uses the default tracker (project Support only enables the `AILAB - *` trackers). Use `list_project_trackers` first; `create_issue` returns a `warning` when the tracker differs.
 
-Out of scope: delete, wiki, news, file upload, project and member management, Gantt and dashboards.
+Out of scope: deleting anything but issues, wiki, news, file upload, project and member management, Gantt and dashboards.
 
 ## 5. Message protocol (daemon ⇄ extension)
 
@@ -92,7 +92,7 @@ scripts/smoke.ts              calls get_current_user and list_issues on a runnin
 | Redmine upgrade changes the key page         | Three retrieval strategies plus masked diagnostics.                                                                                       |
 | Chrome closed or wrong profile               | `NOT_CONNECTED` fails fast.                                                                                                               |
 | Any local process can use the daemon         | Loopback and Host/Origin checks, `READ_ONLY=1`; accepted trade-off.                                                                       |
-| Prompt injection through issue text          | Write approval stays on; no generic fetch; no delete.                                                                                     |
+| Prompt injection through issue text          | Write approval stays on; no generic fetch; the only delete is guarded (`confirm_id`).                                                     |
 | MV3 worker sleeps                            | Ping keep-alive, `chrome.alarms` restart, reconnect with backoff; `restart()` is serialised so overlapping events cannot start two links. |
 
-Not built (by choice): a systemd unit for the daemon, a content-script fallback (never needed), delete tools, a generic fetch tool.
+Not built (by choice): a systemd unit for the daemon, a content-script fallback (never needed), delete tools other than `delete_issue`, a generic fetch tool.

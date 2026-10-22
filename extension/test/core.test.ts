@@ -242,9 +242,16 @@ describe("writes", () => {
     });
   });
 
-  it("refuses DELETE", async () => {
-    expect(await site(() => json({})).exec.handle(put({ method: "DELETE" }))).toMatchObject({
+  it("refuses DELETE outside /issues/<id>.json", async () => {
+    expect(await site(() => json({})).exec.handle(put({ method: "DELETE", path: "/projects/p.json" }))).toMatchObject({
       error: { code: "FORBIDDEN_PATH" },
     });
+  });
+
+  it("deletes an issue with the key and CSRF token and returns ok on 204", async () => {
+    const s = site(() => new Response(null, { status: 204 }));
+    expect(await s.exec.handle(put({ method: "DELETE", body: undefined }))).toMatchObject({ ok: true, status: 204 });
+    const del = s.calls.find((c) => c.init.method === "DELETE")!;
+    expect(del.init.headers).toMatchObject({ "x-csrf-token": "TOK", "x-redmine-api-key": KEY });
   });
 });

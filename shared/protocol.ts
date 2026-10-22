@@ -1,4 +1,4 @@
-export type HttpMethod = "GET" | "POST" | "PUT";
+export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 export interface HttpRequestMsg {
   id: string;
@@ -56,6 +56,6 @@ export function isAllowedRequest(method: string, path: string): boolean {
   if (!path.startsWith("/") || path.includes("..") || path.includes("?") || path.includes("//")) return false;
   if (method === "GET") return READ_PATHS.some((r) => r.test(path));
   if (method === "POST") return path === "/issues.json" || path === "/time_entries.json";
-  if (method === "PUT") return /^\/issues\/\d+\.json$/.test(path);
+  if (method === "PUT" || method === "DELETE") return /^\/issues\/\d+\.json$/.test(path);
   return false;
 }

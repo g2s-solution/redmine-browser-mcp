@@ -17,7 +17,14 @@ const CSRF = "csrf-abc";
 const KEY = "0123456789abcdef0123456789abcdef01234567";
 
 function fakeRedmine() {
-  const state = { key: KEY, loggedIn: true, issueStatus: "New", notes: [] as string[], writes: 0 };
+  const state = {
+    deleted: [] as number[],
+    key: KEY,
+    loggedIn: true,
+    issueStatus: "New",
+    notes: [] as string[],
+    writes: 0,
+  };
   const server: Server = createServer((req, res) => {
     const url = new URL(req.url!, "http://x");
     const send = (status: number, body: unknown, type = "application/json") =>
@@ -52,6 +59,11 @@ function fakeRedmine() {
             },
           ],
         });
+      }
+      if (url.pathname === "/issues/2.json" && req.method === "DELETE") {
+        if (req.headers["x-csrf-token"] !== CSRF) return send(422, "", "text/plain");
+        state.deleted.push(2);
+        return void res.writeHead(204).end();
       }
       if (url.pathname === "/issues/1.json" && req.method === "PUT") {
         if (req.headers["x-csrf-token"] !== CSRF) return send(422, "", "text/plain");
@@ -121,6 +133,14 @@ describe("end to end: MCP client -> daemon -> extension core -> fake Redmine", (
     expect(r.isError).toBe(false);
     expect(rm.state.notes).toEqual(["from claude"]);
     expect(JSON.parse((await call("list_issues")).text).items[0].status).toBe("In Progress");
+  });
+
+  it("deletes an issue only after the confirm_id guard, through CSRF", async () => {
+    const { call, rm } = await stack();
+    expect((await call("delete_issue", { id: 2, confirm_id: 3 })).isError).toBe(true);
+    expect(rm.state.deleted).toEqual([]);
+    expect((await call("delete_issue", { id: 2, confirm_id: 2 })).isError).toBe(false);
+    expect(rm.state.deleted).toEqual([2]);
   });
 
   it("returns Redmine validation errors", async () => {

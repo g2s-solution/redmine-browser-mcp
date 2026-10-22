@@ -7,6 +7,7 @@ export interface ToolDef {
   description: string;
   shape: ZodRawShape;
   write: boolean;
+  destructive?: boolean;
   run: (c: RedmineClient, args: any) => Promise<unknown>;
 }
 
@@ -236,6 +237,19 @@ export const tools: ToolDef[] = [
           ? `tracker_id ${a.tracker_id} is not enabled for this project; Redmine used "${r?.issue?.tracker?.name}" instead`
           : undefined;
       return { ok: true, issue: r?.issue ? shapeIssueRow(r.issue) : undefined, ...(warning ? { warning } : {}) };
+    },
+  },
+  {
+    name: "delete_issue",
+    write: true,
+    destructive: true,
+    description:
+      "Permanently delete an issue and everything attached to it (comments, time entries, attachments); this cannot be undone. confirm_id must repeat the id, as a guard against typos. Prefer update_issue with a closed status when the issue only needs to be closed.",
+    shape: { id: issueId, confirm_id: issueId.describe("Repeat the id of the issue to delete") },
+    run: async (c, a) => {
+      if (a.id !== a.confirm_id) throw new Error("confirm_id must equal id; nothing was deleted");
+      await c.call("DELETE", `/issues/${a.id}.json`);
+      return { ok: true, id: a.id, deleted: true };
     },
   },
   {
