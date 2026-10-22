@@ -23,7 +23,7 @@
     "uninstall-host": "tsx daemon/src/install-host.ts --uninstall"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.5",
+    "@eslint/js": "^10.0.1",
     "@types/chrome": "^0.0.300",
     "@types/node": "^22.0.0",
     "@types/ws": "^8.5.0",
