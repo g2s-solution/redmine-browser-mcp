@@ -33,7 +33,9 @@ export function createMcpServer({ client, readOnly, audit }: McpDeps): McpServer
       {
         description: t.description,
         inputSchema: t.shape,
-        annotations: t.write ? { readOnlyHint: false, destructiveHint: false } : { readOnlyHint: true },
+        annotations: t.write
+          ? { readOnlyHint: false, destructiveHint: t.destructive === true }
+          : { readOnlyHint: true },
       },
       async (args: any) => {
         try {

@@ -64,7 +64,7 @@ Check: two lines, `OK   get_current_user: (data hidden)` and `OK   list_issues: 
 
 Keep the browser open and logged in to Redmine, then use Claude Code. Example prompts: "list my open issues", "show issue 1234 with comments", "set issue 1234 to In Progress and add a note".
 
-Write tools (`update_issue`, `add_note`, `create_issue`, `log_time`) act as you in Redmine. Claude Code asks before running them unless you allowed them. Every write is appended to `~/.local/state/redmine-mcp/audit.log`.
+Write tools (`update_issue`, `add_note`, `create_issue`, `log_time`, `delete_issue`) act as you in Redmine. Claude Code asks before running them unless you allowed them. Every write is appended to `~/.local/state/redmine-mcp/audit.log`.
 
 ### Alternative: run the daemon yourself
 
@@ -117,13 +117,15 @@ Redmine ignores session cookies on `.json` URLs and wants an API key. The extens
 
 - Cookies and your API key never leave Chrome; the daemon and Claude only see Redmine API responses.
 - The daemon has no token. It listens on `127.0.0.1` only, rejects any `Host` that is not loopback (DNS rebinding), rejects `/mcp` requests that carry a browser `Origin`, and only accepts the WebSocket from a `chrome-extension://` origin (pin it with `REDMINE_MCP_EXTENSION_ID`). Any process running as you on this machine can still call the tools, so use `READ_ONLY=1` if that matters.
-- The extension only talks to the Redmine address you saved in the popup (https, or http for localhost; Chrome asks you to grant access to that site) and only to allowlisted endpoints. There is no delete tool.
+- The extension only talks to the Redmine address you saved in the popup (https, or http for localhost; Chrome asks you to grant access to that site) and only to allowlisted endpoints. The only delete is `delete_issue`, guarded by `confirm_id`.
 - Issue text is untrusted input to Claude (prompt injection): keep write approval on.
 
 ## Tools
 
 Read: `get_current_user`, `list_projects`, `list_issues`, `get_issue`, `search_issues`, `list_statuses`, `list_trackers`, `list_project_trackers`, `list_priorities`, `list_time_entry_activities`, `list_versions`, `list_project_members`.
-Write: `update_issue`, `add_note`, `create_issue`, `log_time`.
+Write: `update_issue`, `add_note`, `create_issue`, `log_time`, `delete_issue`.
+
+`delete_issue` permanently removes an issue with its comments, time entries and attachments. It needs `confirm_id` to repeat the id and Claude Code asks for approval first; it is the only delete tool. Closing the issue with `update_issue` is usually what you want.
 
 Tip: a project only accepts its enabled trackers. Redmine silently falls back to the default tracker when `create_issue` gets one that is not enabled for the project. Call `list_project_trackers` first; `create_issue` returns a `warning` when the tracker differs.
 

@@ -20,7 +20,7 @@ Local MCP daemon + Chrome extension that lets Claude use Redmine through the use
 - Never add a generic "fetch any URL" tool; new endpoints go through `isAllowedRequest` plus a typed tool.
 - The daemon has no token by design (loopback only, Host and Origin checks in `daemon/src/app.ts` and `bridge.ts`); keep those checks when touching the server.
 - New tool or error path needs a unit test, and an e2e test in `test/e2e.test.ts` when it crosses daemon and extension.
-- Write tools must stay hidden when `READ_ONLY=1`.
+- Write tools must stay hidden when `READ_ONLY=1`. `delete_issue` is the only delete: keep `confirm_id`, the destructive annotation and the single `DELETE /issues/<id>.json` allowlist entry; other deletes need a deliberate decision.
 - The fake Redmine in `test/e2e.test.ts` and `extension/test/core.test.ts` must mirror the real site (401 on `.json` without the key header, key via XHR); when the real site surprises you, teach the fake first, then fix the code.
 - `create_issue` silently falls back to the default tracker on the real site; keep the tracker warning.
 - `extension/manifest.json` `key` fixes the extension id (`nhcphgmoomfcfoakphjjjpdbbdjeioaj`, pinned by a test); the native host manifest allows exactly that origin. Never change the key casually, and never commit a private key (none exists).
