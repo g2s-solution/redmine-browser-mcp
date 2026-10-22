@@ -47,7 +47,7 @@ describe("startLink", () => {
     await until(() => s.sockets.length === 1);
     s.sockets[0].send(JSON.stringify({ id: "7", type: "http", method: "GET", path: "/issues.json" }));
     await until(() => s.received.some((m) => m.type === "http-result"));
-    expect(s.received[0].type).toBe("hello");
+    expect(s.received[0]).toMatchObject({ type: "hello", build: "dev" });
     expect(s.received.find((m) => m.type === "http-result")).toMatchObject({
       id: "7",
       ok: true,
