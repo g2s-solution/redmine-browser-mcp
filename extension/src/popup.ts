@@ -15,7 +15,8 @@ function say(text: string, isError = false): void {
 async function refreshStatus(): Promise<void> {
   try {
     const s = await chrome.runtime.sendMessage({ type: "status" });
-    conn.textContent = s?.connected ? "Connected to the local daemon" : "Not connected to the local daemon";
+    const via = s?.mode === "native" ? "native host started by Chrome" : "daemon over WebSocket";
+    conn.textContent = s?.connected ? `Connected (${via})` : "Not connected to the daemon";
     conn.className = s?.connected ? "ok" : "error";
   } catch {
     conn.textContent = "Starting…";
