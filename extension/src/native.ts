@@ -20,6 +20,10 @@ export interface NativeLinkOptions {
   build?: string;
   pingMs?: number;
   maxBackoffMs?: number;
+  // A reload starts the new host while the old one is still releasing the port, so a host that exits before it
+  // ever answered is retried a few times before the link gives up on native.
+  startAttempts?: number;
+  startRetryMs?: number;
 }
 
 export function startNativeLink(opts: NativeLinkOptions): { stop(): void } {
@@ -28,6 +32,9 @@ export function startNativeLink(opts: NativeLinkOptions): { stop(): void } {
   let port: NativePortLike | null = null;
   let stopped = false;
   let everConnected = false;
+  let failedStarts = 0;
+  const startAttempts = opts.startAttempts ?? 3;
+  const startRetryMs = opts.startRetryMs ?? 600;
   let backoff = 500;
   let pingTimer: ReturnType<typeof setInterval> | undefined;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -67,7 +74,12 @@ export function startNativeLink(opts: NativeLinkOptions): { stop(): void } {
       if (port === p) port = null;
       if (stopped) return;
       if (answered) opts.onStatus?.(false);
-      if (!answered && !everConnected) return opts.onUnavailable("native host did not start");
+      if (!answered && !everConnected) {
+        failedStarts++;
+        if (failedStarts >= startAttempts) return opts.onUnavailable("native host did not start");
+        retryTimer = setTimeout(open, startRetryMs * failedStarts);
+        return;
+      }
       retryTimer = setTimeout(open, backoff);
       backoff = Math.min(backoff * 2, maxBackoff);
     });

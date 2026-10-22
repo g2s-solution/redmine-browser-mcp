@@ -47,7 +47,7 @@ describe("startNativeLink", () => {
     );
   });
 
-  it("reports the host unavailable when connect throws or the port drops before any answer", () => {
+  it("reports the host unavailable when connect throws", () => {
     const a = vi.fn();
     startNativeLink({
       connect: () => {
@@ -57,12 +57,46 @@ describe("startNativeLink", () => {
       onUnavailable: a,
     });
     expect(a).toHaveBeenCalledWith(expect.stringContaining("not found"));
+  });
 
-    const port = fakePort();
-    const b = vi.fn();
-    startNativeLink({ connect: () => port, handle: never, onUnavailable: b });
-    port.drop();
-    expect(b).toHaveBeenCalledTimes(1);
+  it("retries a host that exits before answering, then gives up", async () => {
+    const ports = [fakePort(), fakePort(), fakePort()];
+    let n = 0;
+    const unavailable = vi.fn();
+    startNativeLink({
+      connect: () => ports[n++],
+      handle: never,
+      onUnavailable: unavailable,
+      startAttempts: 3,
+      startRetryMs: 5,
+    });
+    ports[0].drop();
+    expect(unavailable).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(n).toBe(2));
+    ports[1].drop();
+    await vi.waitFor(() => expect(n).toBe(3));
+    expect(unavailable).not.toHaveBeenCalled();
+    ports[2].drop();
+    expect(unavailable).toHaveBeenCalledTimes(1);
+  });
+
+  it("recovers when the second start works (the reload race)", async () => {
+    const ports = [fakePort(), fakePort()];
+    let n = 0;
+    const states: boolean[] = [];
+    const unavailable = vi.fn();
+    startNativeLink({
+      connect: () => ports[n++],
+      handle: never,
+      onUnavailable: unavailable,
+      onStatus: (c) => states.push(c),
+      startRetryMs: 5,
+    });
+    ports[0].drop();
+    await vi.waitFor(() => expect(n).toBe(2));
+    ports[1].emit({ type: "pong" });
+    expect(states).toEqual([true]);
+    expect(unavailable).not.toHaveBeenCalled();
   });
 
   it("reconnects after a working connection is lost", async () => {

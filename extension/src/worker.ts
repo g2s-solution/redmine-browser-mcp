@@ -39,7 +39,12 @@ async function restart(): Promise<void> {
   };
   mode = "native";
   inner = startNativeLink({
-    connect: () => chrome.runtime.connectNative(NATIVE_HOST_NAME),
+    connect: () => {
+      const port = chrome.runtime.connectNative(NATIVE_HOST_NAME);
+      // Reading lastError marks it as handled; otherwise Chrome logs "Unchecked runtime.lastError" on every reload.
+      port.onDisconnect.addListener(() => void chrome.runtime.lastError);
+      return port;
+    },
     handle,
     version,
     build: BUILD,
